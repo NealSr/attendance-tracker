@@ -1,57 +1,100 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Calendar, BarChart3, Plus, Download, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Users, Calendar, BarChart3, Plus, Download, Edit2, Trash2, Save, X, LogOut, User } from 'lucide-react';
+import Login from './Login';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_URL = '/api';
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : ''
+  };
+};
+
+const handleAuthError = (response) => {
+  if (response.status === 401) {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    window.location.reload();
+  }
+  return response;
+};
 
 const api = {
-  getPeople: () => fetch(`${API_URL}/people`).then(r => r.json()),
+  getPeople: () => fetch(`${API_URL}/people`, {
+    headers: getAuthHeaders()
+  }).then(handleAuthError).then(r => r.json()),
+
   addPerson: (person) => fetch(`${API_URL}/people`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(person)
-  }).then(r => r.json()),
+  }).then(handleAuthError).then(r => r.json()),
+
   addBulkPeople: (people) => fetch(`${API_URL}/people/bulk`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ people })
-  }).then(r => r.json()),
+  }).then(handleAuthError).then(r => r.json()),
+
   updatePerson: (id, person) => fetch(`${API_URL}/people/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(person)
-  }).then(r => r.json()),
-  deletePerson: (id) => fetch(`${API_URL}/people/${id}`, { method: 'DELETE' }).then(r => r.json()),
-  
-  getEvents: () => fetch(`${API_URL}/events`).then(r => r.json()),
+  }).then(handleAuthError).then(r => r.json()),
+
+  deletePerson: (id) => fetch(`${API_URL}/people/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  }).then(handleAuthError).then(r => r.json()),
+
+  getEvents: () => fetch(`${API_URL}/events`, {
+    headers: getAuthHeaders()
+  }).then(handleAuthError).then(r => r.json()),
+
   addEvent: (event) => fetch(`${API_URL}/events`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(event)
-  }).then(r => r.json()),
+  }).then(handleAuthError).then(r => r.json()),
+
   addBulkEvents: (events) => fetch(`${API_URL}/events/bulk`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ events })
-  }).then(r => r.json()),
+  }).then(handleAuthError).then(r => r.json()),
+
   updateEvent: (id, event) => fetch(`${API_URL}/events/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(event)
-  }).then(r => r.json()),
-  deleteEvent: (id) => fetch(`${API_URL}/events/${id}`, { method: 'DELETE' }).then(r => r.json()),
-  
-  getAttendance: () => fetch(`${API_URL}/attendance`).then(r => r.json()),
+  }).then(handleAuthError).then(r => r.json()),
+
+  deleteEvent: (id) => fetch(`${API_URL}/events/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  }).then(handleAuthError).then(r => r.json()),
+
+  getAttendance: () => fetch(`${API_URL}/attendance`, {
+    headers: getAuthHeaders()
+  }).then(handleAuthError).then(r => r.json()),
+
   setAttendance: (attendance) => fetch(`${API_URL}/attendance`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(attendance)
-  }).then(r => r.json()),
+  }).then(handleAuthError).then(r => r.json()),
+
   deleteAttendance: (personId, eventId) => fetch(`${API_URL}/attendance/${personId}/${eventId}`, {
-    method: 'DELETE'
-  }).then(r => r.json())
+    method: 'DELETE',
+    headers: getAuthHeaders()
+  }).then(handleAuthError).then(r => r.json())
 };
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [username, setUsername] = useState('');
   const [activeTab, setActiveTab] = useState('attendance');
   const [people, setPeople] = useState([]);
   const [events, setEvents] = useState([]);
@@ -66,6 +109,7 @@ function App() {
   const [reportFilter, setReportFilter] = useState({ period: 'all', department: 'all' });
   const [editingPerson, setEditingPerson] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
+  const [selectedPersonForReport, setSelectedPersonForReport] = useState(null);
 
   const isPersonActiveForEvent = (person, eventDate) => {
     const event = new Date(eventDate);
@@ -83,8 +127,32 @@ function App() {
   const eventTypes = [...new Set(events.map(e => e.type))];
 
   useEffect(() => {
-    loadData();
+    const token = localStorage.getItem('token');
+    const savedUsername = localStorage.getItem('username');
+    if (token && savedUsername) {
+      setIsAuthenticated(true);
+      setUsername(savedUsername);
+      loadData();
+    } else {
+      setLoading(false);
+    }
   }, []);
+
+  const handleLogin = (token, user) => {
+    setIsAuthenticated(true);
+    setUsername(user);
+    loadData();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setIsAuthenticated(false);
+    setUsername('');
+    setPeople([]);
+    setEvents([]);
+    setAttendance([]);
+  };
 
   const loadData = async () => {
     try {
@@ -373,17 +441,17 @@ function App() {
   const exportReport = () => {
     const stats = calculateAttendanceStats();
     const deptStats = calculateDepartmentStats();
-    
+
     let csv = 'Attendance Report\n\n';
     csv += `Period: ${reportFilter.period === 'month' ? 'Current Month' : reportFilter.period === 'ytd' ? 'Year to Date' : 'All Time'}\n`;
     csv += `Department: ${reportFilter.department === 'all' ? 'All Departments' : reportFilter.department}\n\n`;
-    
+
     csv += 'By Event Type\n';
     csv += 'Type,Events,Present,Absent,Excused,No Record,Attendance Rate\n';
     Object.entries(stats).forEach(([type, data]) => {
       csv += `${type},${data.totalEvents},${data.present},${data.absent},${data.excused},${data.noRecord},${data.attendanceRate}%\n`;
     });
-    
+
     csv += '\nBy Department\n';
     csv += 'Department,People,Present,Absent,Excused,Attendance Rate\n';
     Object.entries(deptStats).forEach(([dept, data]) => {
@@ -398,7 +466,85 @@ function App() {
     a.click();
   };
 
+  const calculateIndividualReport = (personId) => {
+    if (!personId) return null;
+
+    const person = people.find(p => p.id === personId);
+    if (!person) return null;
+
+    const eligibleEvents = events.filter(e => isPersonActiveForEvent(person, e.date));
+
+    let present = 0, absent = 0, excused = 0, noRecord = 0;
+    const eventRecords = [];
+
+    eligibleEvents.forEach(event => {
+      const status = getAttendanceStatus(personId, event.id);
+      if (status === 'present') present++;
+      else if (status === 'absent') absent++;
+      else if (status === 'excused') excused++;
+      else noRecord++;
+
+      eventRecords.push({
+        ...event,
+        status: status || 'No Record'
+      });
+    });
+
+    const attendableEvents = eligibleEvents.length - excused;
+    const attendanceRate = attendableEvents > 0 ? (present / attendableEvents * 100) : 0;
+
+    return {
+      person,
+      totalEvents: eligibleEvents.length,
+      present,
+      absent,
+      excused,
+      noRecord,
+      attendanceRate: attendanceRate.toFixed(1),
+      eventRecords: eventRecords.sort((a, b) => new Date(b.date) - new Date(a.date))
+    };
+  };
+
+  const exportIndividualReport = () => {
+    if (!selectedPersonForReport) return;
+
+    const report = calculateIndividualReport(selectedPersonForReport);
+    if (!report) return;
+
+    let csv = `Individual Attendance Report\n\n`;
+    csv += `Name: ${report.person.name}\n`;
+    csv += `Department: ${report.person.department}\n`;
+    csv += `Hire Date: ${report.person.hireDate}\n`;
+    if (report.person.endDate) {
+      csv += `End Date: ${report.person.endDate}\n`;
+    }
+    csv += `\nSummary\n`;
+    csv += `Total Events: ${report.totalEvents}\n`;
+    csv += `Present: ${report.present}\n`;
+    csv += `Absent: ${report.absent}\n`;
+    csv += `Excused: ${report.excused}\n`;
+    csv += `No Record: ${report.noRecord}\n`;
+    csv += `Attendance Rate: ${report.attendanceRate}%\n\n`;
+
+    csv += 'Event Details\n';
+    csv += 'Date,Event Name,Type,Status\n';
+    report.eventRecords.forEach(event => {
+      csv += `${event.date},${event.name},${event.type},${event.status}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${report.person.name.replace(/\s+/g, '_')}_attendance_report.csv`;
+    a.click();
+  };
+
   const displayPeople = showInactive ? people : people.filter(p => !p.endDate || new Date(p.endDate) >= new Date());
+
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   if (loading) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -409,7 +555,22 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Attendance Tracking System</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Attendance Tracking System</h1>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-gray-700">
+              <User size={18} />
+              <span className="text-sm">{username}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+            >
+              <LogOut size={18} />
+              Logout
+            </button>
+          </div>
+        </div>
         
         <div className="flex gap-2 mb-6 border-b border-gray-200">
           <button
@@ -439,6 +600,13 @@ function App() {
           >
             <BarChart3 className="inline mr-2" size={18} />
             Reports
+          </button>
+          <button
+            onClick={() => setActiveTab('individual')}
+            className={`px-4 py-2 font-medium ${activeTab === 'individual' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-600'}`}
+          >
+            <User className="inline mr-2" size={18} />
+            Individual
           </button>
         </div>
 
@@ -851,7 +1019,7 @@ Product Training, Training, 2025-01-25"
                   Export CSV
                 </button>
               </div>
-              
+
               <div className="flex gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium mb-1">Period</label>
@@ -938,6 +1106,129 @@ Product Training, Training, 2025-01-25"
                 </table>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'individual' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Individual Attendance Report</h2>
+              {selectedPersonForReport && (
+                <button
+                  onClick={exportIndividualReport}
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                >
+                  <Download className="inline mr-1" size={16} />
+                  Export CSV
+                </button>
+              )}
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2">Select Person</label>
+              <select
+                value={selectedPersonForReport || ''}
+                onChange={(e) => setSelectedPersonForReport(e.target.value ? parseInt(e.target.value) : null)}
+                className="px-3 py-2 border border-gray-300 rounded w-full md:w-96"
+              >
+                <option value="">Choose a person...</option>
+                {people.map(person => (
+                  <option key={person.id} value={person.id}>
+                    {person.name} - {person.department}
+                    {person.endDate && ` (Ended: ${person.endDate})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedPersonForReport && (() => {
+              const report = calculateIndividualReport(selectedPersonForReport);
+              if (!report) return null;
+
+              return (
+                <div>
+                  <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                    <h3 className="font-semibold text-lg mb-3">{report.person.name}</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <div className="text-sm text-gray-600">Department</div>
+                        <div className="font-medium">{report.person.department}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Hire Date</div>
+                        <div className="font-medium">{report.person.hireDate}</div>
+                      </div>
+                      {report.person.endDate && (
+                        <div>
+                          <div className="text-sm text-gray-600">End Date</div>
+                          <div className="font-medium text-red-600">{report.person.endDate}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mb-6 grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div className="p-4 bg-gray-100 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Total Events</div>
+                      <div className="text-2xl font-bold">{report.totalEvents}</div>
+                    </div>
+                    <div className="p-4 bg-green-100 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Present</div>
+                      <div className="text-2xl font-bold text-green-600">{report.present}</div>
+                    </div>
+                    <div className="p-4 bg-red-100 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Absent</div>
+                      <div className="text-2xl font-bold text-red-600">{report.absent}</div>
+                    </div>
+                    <div className="p-4 bg-yellow-100 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Excused</div>
+                      <div className="text-2xl font-bold text-yellow-600">{report.excused}</div>
+                    </div>
+                    <div className="p-4 bg-blue-100 rounded-lg">
+                      <div className="text-sm text-gray-600 mb-1">Attendance Rate</div>
+                      <div className="text-2xl font-bold text-blue-600">{report.attendanceRate}%</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-semibold text-lg mb-3">Event History</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left p-2">Date</th>
+                            <th className="text-left p-2">Event Name</th>
+                            <th className="text-left p-2">Type</th>
+                            <th className="text-center p-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.eventRecords.map(event => (
+                            <tr key={event.id} className="border-b hover:bg-gray-50">
+                              <td className="p-2">{event.date}</td>
+                              <td className="p-2">{event.name}</td>
+                              <td className="p-2">{event.type}</td>
+                              <td className="p-2 text-center">
+                                <span className={`px-3 py-1 rounded text-sm font-medium ${
+                                  event.status === 'present' ? 'bg-green-100 text-green-700' :
+                                  event.status === 'absent' ? 'bg-red-100 text-red-700' :
+                                  event.status === 'excused' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {event.status === 'present' ? 'Present' :
+                                   event.status === 'absent' ? 'Absent' :
+                                   event.status === 'excused' ? 'Excused' : 'No Record'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
