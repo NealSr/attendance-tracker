@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Calendar, BarChart3, Plus, Download, Edit2, Trash2, Save, X, LogOut, User } from 'lucide-react';
+import { Users, Calendar, BarChart3, Plus, Download, Edit2, Trash2, Save, X, LogOut, User, ChevronDown, ChevronRight } from 'lucide-react';
 import Login from './Login';
 
 const API_URL = '/api';
@@ -110,6 +110,7 @@ function App() {
   const [editingPerson, setEditingPerson] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedPersonForReport, setSelectedPersonForReport] = useState(null);
+  const [expandedDepts, setExpandedDepts] = useState([]);
 
   const isPersonActiveForEvent = (person, eventDate) => {
     const event = new Date(eventDate);
@@ -443,17 +444,29 @@ function App() {
     departments.forEach(dept => {
       let present = 0, absent = 0, excused = 0;
       let totalSlots = 0;
-      
+      const byType = {};
+
       filteredEvents.forEach(event => {
         const deptPeople = activePeopleForEvent(event.date).filter(p => p.department === dept);
         totalSlots += deptPeople.length;
-        
+
+        if (!byType[event.type]) {
+          byType[event.type] = { totalEvents: 0, present: 0, absent: 0, excused: 0 };
+        }
+        byType[event.type].totalEvents++;
+
         deptPeople.forEach(person => {
           const status = getAttendanceStatus(person.id, event.id);
-          if (status === 'present') present++;
-          else if (status === 'absent') absent++;
-          else if (status === 'excused') excused++;
+          if (status === 'present') { present++; byType[event.type].present++; }
+          else if (status === 'absent') { absent++; byType[event.type].absent++; }
+          else if (status === 'excused') { excused++; byType[event.type].excused++; }
         });
+      });
+
+      // Calculate rate for each event type
+      Object.values(byType).forEach(t => {
+        const attendable = (t.present + t.absent + t.excused) - t.excused;
+        t.attendanceRate = attendable > 0 ? (t.present / attendable * 100).toFixed(1) : '0.0';
       });
 
       const attendableSlots = totalSlots - excused;
@@ -464,7 +477,8 @@ function App() {
         present,
         absent,
         excused,
-        attendanceRate: attendanceRate.toFixed(1)
+        attendanceRate: attendanceRate.toFixed(1),
+        byType
       };
     });
 
@@ -687,6 +701,12 @@ function App() {
                             className="text-xs px-1 py-0.5 bg-red-100 text-red-700 rounded hover:bg-red-200"
                           >
                             All A
+                          </button>
+                          <button
+                            onClick={() => markAllForEvent(event.id, 'excused')}
+                            className="text-xs px-1 py-0.5 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
+                          >
+                            All E
                           </button>
                         </div>
                       </th>
@@ -1173,16 +1193,42 @@ Product Training, Training, 2025-01-25"
                     </tr>
                   </thead>
                   <tbody>
-                    {Object.entries(calculateDepartmentStats()).map(([dept, stats]) => (
-                      <tr key={dept} className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium">{dept}</td>
-                        <td className="p-2 text-right">{stats.people}</td>
-                        <td className="p-2 text-right text-green-600">{stats.present}</td>
-                        <td className="p-2 text-right text-red-600">{stats.absent}</td>
-                        <td className="p-2 text-right text-yellow-600">{stats.excused}</td>
-                        <td className="p-2 text-right font-semibold">{stats.attendanceRate}%</td>
-                      </tr>
-                    ))}
+                    {Object.entries(calculateDepartmentStats()).map(([dept, stats]) => {
+                      const isExpanded = expandedDepts.includes(dept);
+                      return (
+                        <React.Fragment key={dept}>
+                          <tr
+                            className="border-b hover:bg-gray-50 cursor-pointer"
+                            onClick={() => setExpandedDepts(isExpanded
+                              ? expandedDepts.filter(d => d !== dept)
+                              : [...expandedDepts, dept]
+                            )}
+                          >
+                            <td className="p-2 font-medium">
+                              <span className="inline-flex items-center gap-1">
+                                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                {dept}
+                              </span>
+                            </td>
+                            <td className="p-2 text-right">{stats.people}</td>
+                            <td className="p-2 text-right text-green-600">{stats.present}</td>
+                            <td className="p-2 text-right text-red-600">{stats.absent}</td>
+                            <td className="p-2 text-right text-yellow-600">{stats.excused}</td>
+                            <td className="p-2 text-right font-semibold">{stats.attendanceRate}%</td>
+                          </tr>
+                          {isExpanded && Object.entries(stats.byType).map(([type, typeStats]) => (
+                            <tr key={`${dept}-${type}`} className="border-b bg-gray-50">
+                              <td className="p-2 pl-10 text-sm text-gray-600">{type}</td>
+                              <td className="p-2 text-right text-sm text-gray-500">{typeStats.totalEvents} events</td>
+                              <td className="p-2 text-right text-sm text-green-600">{typeStats.present}</td>
+                              <td className="p-2 text-right text-sm text-red-600">{typeStats.absent}</td>
+                              <td className="p-2 text-right text-sm text-yellow-600">{typeStats.excused}</td>
+                              <td className="p-2 text-right text-sm font-medium">{typeStats.attendanceRate}%</td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
