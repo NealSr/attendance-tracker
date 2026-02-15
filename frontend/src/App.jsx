@@ -519,9 +519,12 @@ function App() {
     });
 
     csv += '\nBy Department\n';
-    csv += 'Department,People,Present,Absent,Excused,Attendance Rate\n';
+    csv += 'Department,People/Events,Present,Absent,Excused,Attendance Rate\n';
     Object.entries(deptStats).forEach(([dept, data]) => {
       csv += `${dept},${data.people},${data.present},${data.absent},${data.excused},${data.attendanceRate}%\n`;
+      Object.entries(data.byType).forEach(([type, typeData]) => {
+        csv += `  ${type},${typeData.totalEvents} events,${typeData.present},${typeData.absent},${typeData.excused},${typeData.attendanceRate}%\n`;
+      });
     });
 
     const blob = new Blob([csv], { type: 'text/csv' });
