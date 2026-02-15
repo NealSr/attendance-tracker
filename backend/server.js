@@ -2,7 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from './database.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -151,6 +155,13 @@ app.delete('/api/attendance/:personId/:eventId', verifyToken, (req, res) => {
   db.prepare('DELETE FROM attendance WHERE person_id = ? AND event_id = ?')
     .run(req.params.personId, req.params.eventId);
   res.json({ success: true });
+});
+
+// Serve frontend static files in production
+const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
+app.use(express.static(frontendPath));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 app.listen(PORT, () => {
