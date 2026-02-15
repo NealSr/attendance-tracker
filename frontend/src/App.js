@@ -106,7 +106,7 @@ function App() {
   const [bulkPeople, setBulkPeople] = useState('');
   const [newEvent, setNewEvent] = useState({ name: '', type: '', date: '' });
   const [bulkEvents, setBulkEvents] = useState('');
-  const [reportFilter, setReportFilter] = useState({ period: 'all', department: 'all' });
+  const [reportFilter, setReportFilter] = useState({ period: 'all', department: 'all', startDate: '', endDate: '' });
   const [editingPerson, setEditingPerson] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
   const [selectedPersonForReport, setSelectedPersonForReport] = useState(null);
@@ -354,12 +354,45 @@ function App() {
 
     return events.filter(event => {
       const eventDate = new Date(event.date);
-      if (reportFilter.period === 'month') {
-        return eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear;
-      } else if (reportFilter.period === 'ytd') {
-        return eventDate.getFullYear() === currentYear;
+      switch (reportFilter.period) {
+        case 'month':
+          return eventDate.getMonth() === currentMonth && eventDate.getFullYear() === currentYear;
+        case 'ytd':
+          return eventDate.getFullYear() === currentYear;
+        case 'lastMonth': {
+          const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+          const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+          return eventDate.getMonth() === lastMonth && eventDate.getFullYear() === lastMonthYear;
+        }
+        case 'last3Months': {
+          const threeMonthsAgo = new Date(now);
+          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+          return eventDate >= threeMonthsAgo && eventDate <= now;
+        }
+        case 'last6Months': {
+          const sixMonthsAgo = new Date(now);
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+          return eventDate >= sixMonthsAgo && eventDate <= now;
+        }
+        case 'lastYear':
+          return eventDate.getFullYear() === currentYear - 1;
+        case 'last2Years': {
+          const twoYearsAgo = new Date(now);
+          twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+          return eventDate >= twoYearsAgo && eventDate <= now;
+        }
+        case 'custom': {
+          const start = reportFilter.startDate ? new Date(reportFilter.startDate) : null;
+          const end = reportFilter.endDate ? new Date(reportFilter.endDate) : null;
+          if (start && end) return eventDate >= start && eventDate <= end;
+          if (start) return eventDate >= start;
+          if (end) return eventDate <= end;
+          return true;
+        }
+        case 'all':
+        default:
+          return true;
       }
-      return true;
     });
   };
 
@@ -438,12 +471,31 @@ function App() {
     return stats;
   };
 
+  const getPeriodLabel = () => {
+    const labels = {
+      month: 'Current Month',
+      ytd: 'Year to Date',
+      lastMonth: 'Last Month',
+      last3Months: 'Last 3 Months',
+      last6Months: 'Last 6 Months',
+      lastYear: 'Last Year',
+      last2Years: 'Last 2 Years',
+      all: 'All Time',
+    };
+    if (reportFilter.period === 'custom') {
+      const from = reportFilter.startDate || 'beginning';
+      const to = reportFilter.endDate || 'present';
+      return `Custom: ${from} to ${to}`;
+    }
+    return labels[reportFilter.period] || 'All Time';
+  };
+
   const exportReport = () => {
     const stats = calculateAttendanceStats();
     const deptStats = calculateDepartmentStats();
 
     let csv = 'Attendance Report\n\n';
-    csv += `Period: ${reportFilter.period === 'month' ? 'Current Month' : reportFilter.period === 'ytd' ? 'Year to Date' : 'All Time'}\n`;
+    csv += `Period: ${getPeriodLabel()}\n`;
     csv += `Department: ${reportFilter.department === 'all' ? 'All Departments' : reportFilter.department}\n\n`;
 
     csv += 'By Event Type\n';
@@ -472,7 +524,7 @@ function App() {
     const person = people.find(p => p.id === personId);
     if (!person) return null;
 
-    const eligibleEvents = events.filter(e => isPersonActiveForEvent(person, e.date));
+    const eligibleEvents = filterEventsByPeriod(events).filter(e => isPersonActiveForEvent(person, e.date));
 
     let present = 0, absent = 0, excused = 0, noRecord = 0;
     const eventRecords = [];
@@ -512,6 +564,7 @@ function App() {
     if (!report) return;
 
     let csv = `Individual Attendance Report\n\n`;
+    csv += `Period: ${getPeriodLabel()}\n`;
     csv += `Name: ${report.person.name}\n`;
     csv += `Department: ${report.person.department}\n`;
     csv += `Hire Date: ${report.person.hireDate}\n`;
@@ -1020,7 +1073,7 @@ Product Training, Training, 2025-01-25"
                 </button>
               </div>
 
-              <div className="flex gap-4 mb-6">
+              <div className="flex flex-wrap gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium mb-1">Period</label>
                   <select
@@ -1029,10 +1082,38 @@ Product Training, Training, 2025-01-25"
                     className="px-3 py-2 border border-gray-300 rounded"
                   >
                     <option value="month">Current Month</option>
+                    <option value="lastMonth">Last Month</option>
+                    <option value="last3Months">Last 3 Months</option>
+                    <option value="last6Months">Last 6 Months</option>
                     <option value="ytd">Year to Date</option>
+                    <option value="lastYear">Last Year</option>
+                    <option value="last2Years">Last 2 Years</option>
                     <option value="all">All Time</option>
+                    <option value="custom">Custom Range</option>
                   </select>
                 </div>
+                {reportFilter.period === 'custom' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">From</label>
+                      <input
+                        type="date"
+                        value={reportFilter.startDate}
+                        onChange={(e) => setReportFilter({...reportFilter, startDate: e.target.value})}
+                        className="px-3 py-2 border border-gray-300 rounded"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">To</label>
+                      <input
+                        type="date"
+                        value={reportFilter.endDate}
+                        onChange={(e) => setReportFilter({...reportFilter, endDate: e.target.value})}
+                        className="px-3 py-2 border border-gray-300 rounded"
+                      />
+                    </div>
+                  </>
+                )}
                 <div>
                   <label className="block text-sm font-medium mb-1">Department</label>
                   <select
@@ -1124,21 +1205,63 @@ Product Training, Training, 2025-01-25"
               )}
             </div>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">Select Person</label>
-              <select
-                value={selectedPersonForReport || ''}
-                onChange={(e) => setSelectedPersonForReport(e.target.value ? parseInt(e.target.value) : null)}
-                className="px-3 py-2 border border-gray-300 rounded w-full md:w-96"
-              >
-                <option value="">Choose a person...</option>
-                {people.map(person => (
-                  <option key={person.id} value={person.id}>
-                    {person.name} - {person.department}
-                    {person.endDate && ` (Ended: ${person.endDate})`}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap gap-4 mb-6 items-end">
+              <div>
+                <label className="block text-sm font-medium mb-1">Select Person</label>
+                <select
+                  value={selectedPersonForReport || ''}
+                  onChange={(e) => setSelectedPersonForReport(e.target.value ? parseInt(e.target.value) : null)}
+                  className="px-3 py-2 border border-gray-300 rounded"
+                >
+                  <option value="">Choose a person...</option>
+                  {people.map(person => (
+                    <option key={person.id} value={person.id}>
+                      {person.name} - {person.department}
+                      {person.endDate && ` (Ended: ${person.endDate})`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Period</label>
+                <select
+                  value={reportFilter.period}
+                  onChange={(e) => setReportFilter({...reportFilter, period: e.target.value})}
+                  className="px-3 py-2 border border-gray-300 rounded"
+                >
+                  <option value="month">Current Month</option>
+                  <option value="lastMonth">Last Month</option>
+                  <option value="last3Months">Last 3 Months</option>
+                  <option value="last6Months">Last 6 Months</option>
+                  <option value="ytd">Year to Date</option>
+                  <option value="lastYear">Last Year</option>
+                  <option value="last2Years">Last 2 Years</option>
+                  <option value="all">All Time</option>
+                  <option value="custom">Custom Range</option>
+                </select>
+              </div>
+              {reportFilter.period === 'custom' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">From</label>
+                    <input
+                      type="date"
+                      value={reportFilter.startDate}
+                      onChange={(e) => setReportFilter({...reportFilter, startDate: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">To</label>
+                    <input
+                      type="date"
+                      value={reportFilter.endDate}
+                      onChange={(e) => setReportFilter({...reportFilter, endDate: e.target.value})}
+                      className="px-3 py-2 border border-gray-300 rounded"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {selectedPersonForReport && (() => {
