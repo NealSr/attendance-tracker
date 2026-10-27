@@ -1,58 +1,57 @@
-# Attendance Tracking System
+# Attendance Tracker
 
-A full-stack attendance tracking application with Node.js backend and React frontend.
+Attendance Tracker is a React/Vite app with an Express API. The deployment target is Vercel for the app and API, with Supabase Postgres for persistent data. The API uses the Supabase service-role key server-side; it is never needed in the browser.
 
-## Features
-- Track attendance for multiple people across multiple events
-- Mark attendance as Present, Absent, or Excused
-- Support for employee hire/end dates
-- Department-based reporting
-- Export reports to CSV
-- Bulk import for people and events
+Features include attendance tracking for people and events, hire/end dates, department reports, CSV export, and bulk import.
 
-## Setup
+## Migration from the EC2 SQLite database
 
-### Prerequisites
-- Node.js (v16 or higher)
-- npm
+The checked-in backend previously stored data in `backend/attendance.db`. That file is intentionally ignored by Git, so the migration script needs a local copy of the live SQLite database.
 
-### Installation
+1. Make a consistent SQLite backup on EC2 while writes are paused, then transfer that backup securely to this machine. Do not commit the database or put it in a public location.
+2. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql) in its SQL Editor.
+3. Configure `backend/.env` (this file is ignored by Git):
 
-1. Install backend dependencies:
+   ```dotenv
+   SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+   JWT_SECRET=YOUR_LONG_RANDOM_SECRET
+   SQLITE_DATABASE_PATH=./attendance.db
+   ```
+
+   `SQLITE_DATABASE_PATH` is optional; the default is `backend/attendance.db`. Keep the service-role key and JWT secret private. Never add either to a `VITE_` variable or browser code.
+4. If the existing account still uses a default or weak password, set `MIGRATION_ADMIN_PASSWORD` in `backend/.env` to a new password before importing. It must be at least 12 characters. The importer hashes it and writes only the hash to Supabase. Set `MIGRATION_ADMIN_USERNAME` too if the account is not named `admin`.
+5. From the repository root, install dependencies and import the tables:
+
+   ```bash
+   npm install
+   npm run migrate:sqlite --workspace attendance-backend
+   ```
+
+   The importer carries over people, events, attendance, users, and their IDs. It stops before importing if it finds attendance rows without a person or event. It can be rerun after an interrupted import; it upserts by ID and does not delete Supabase rows. Only rerun it before cutover: matching Supabase rows are overwritten with the SQLite snapshot. Keep EC2 available and do not resume writes to the old database during the final snapshot/import/cutover.
+
+## Deploy to Vercel
+
+1. Import this repository into Vercel with the repository root (`.`) as the project root and the framework preset set to **Other**.
+2. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `JWT_SECRET` as Vercel environment variables for the target environments. Do not set `SQLITE_DATABASE_PATH` or `MIGRATION_ADMIN_PASSWORD` in Vercel.
+3. Deploy. `vercel.json` builds the Vite app into `frontend/dist`, routes `/api/*` to the Express function, and sends frontend routes to the app shell.
+4. Confirm the login and existing attendance records before switching users over. Keep the EC2 app/database as a rollback source until the cutover is verified.
+
+RLS is enabled on all four tables without public policies. The API uses the service-role key and enforces the existing signed-token login before accessing application data.
+
+## Local development
+
+Requires Node.js 20 or newer. From the repository root:
+
 ```bash
-cd backend
 npm install
+npm run dev --workspace attendance-backend
 ```
 
-2. Install frontend dependencies:
+In another terminal:
+
 ```bash
-cd frontend
-npm install
+npm run start --workspace attendance-frontend
 ```
 
-### Running the Application
-
-1. Start the backend server (Terminal 1):
-```bash
-cd backend
-npm start
-```
-
-2. In a new terminal, start the frontend (Terminal 2):
-```bash
-cd frontend
-npm start
-```
-
-3. Open http://localhost:3000 in your browser
-
-## Database
-
-The application uses SQLite for data storage. The database file (`attendance.db`) is created automatically in the backend directory.
-
-### Backup
-Simply copy the `attendance.db` file to back up your data.
-
-## Deployment
-
-See the setup guide for deployment instructions to VPS, Railway, or Docker.
+The Vite development server proxies `/api` to the backend at `http://localhost:3001`. Configure `backend/.env` as above, then open the URL printed by Vite.
