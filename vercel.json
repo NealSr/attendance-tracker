@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "functions": {
     "index.js": {
-      "includeFiles": "public/index.html"
+      "includeFiles": "public/**/*"
     }
   }
 }
