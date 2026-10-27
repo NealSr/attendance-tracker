@@ -34,7 +34,7 @@ The checked-in backend previously stored data in `backend/attendance.db`. That f
 
 1. Import this repository into Vercel with the repository root (`.`) as the project root and the framework preset set to **Other**.
 2. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `JWT_SECRET` as Vercel environment variables for the target environments. Do not set `SQLITE_DATABASE_PATH` or `MIGRATION_ADMIN_PASSWORD` in Vercel.
-3. Deploy. `vercel.json` builds the Vite app into `frontend/dist`, routes `/api/*` to the Express function, and sends frontend routes to the app shell.
+3. Deploy. `vercel.json` builds the Vite app into `frontend/dist`, leaves `/api/*` requests for the Express function, and sends other frontend routes to the app shell.
 4. Confirm the login and existing attendance records before switching users over. Keep the EC2 app/database as a rollback source until the cutover is verified.
 
 RLS is enabled on all four tables without public policies. The API uses the service-role key and enforces the existing signed-token login before accessing application data.
