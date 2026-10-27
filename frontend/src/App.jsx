@@ -179,7 +179,7 @@ function App() {
       })));
     } catch (error) {
       console.error('Error loading data:', error);
-      alert('Failed to load data. Make sure the backend server is running on http://localhost:3001');
+      alert('Failed to load data. Check your connection and try again.');
     } finally {
       setLoading(false);
     }

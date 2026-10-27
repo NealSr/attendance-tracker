@@ -90,11 +90,6 @@ function Login({ onLogin }) {
           </button>
         </form>
 
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-600 text-center">
-            Default credentials: <span className="font-mono">admin / admin123</span>
-          </p>
-        </div>
       </div>
     </div>
   );
